@@ -1,32 +1,27 @@
+const bodyParser = require("body-parser");
+const validateMiddleware = require("./src/middlewares/validate.mdw");
+const { redirectNewPostPageController, createNewPostController, listPostsController, getPostbyIdController } = require("./src/controllers/post.ctl");
+const { redirectAboutController, redirectContactController } = require("./src/controllers/until.ctl");
+const connectMongoDB = require("./src/client/connectMongoDb");
 const express = require("express");
 require("ejs"); // Important
-const mongoose = require ("mongoose");
+
 const { 
     addPost,
     listPosts,
     getPost } = require("./src/routes/post.routes");
 
-    const fileUpload = require("express-fileupload");
-const path = require("path");   
+const fileUpload = require("express-fileupload");
 
 const app = express();
-
-const { v4: uuidv4 } = require('uuid');
-uuidv4();
 
 // Set template engine
 app.set("view engine", "ejs");
 
 // Connect mongoDB
 
-try {
-    mongoose.connect("mongodb://localhost:27017/test");
-    console.log("Connected to MongoDB!");
-} catch (error) {
-    console.log("Cannot connect MongoDB", error);
-}
+connectMongoDB();
 
-const bodyParser = require("body-parser");
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: true}));
 
@@ -36,68 +31,19 @@ app.use(express.static("public"));
 //use fileuplode,allow to store file
 app.use(fileUpload());
 
-app.get("/posts/new", async (req, res) => {
-    
-    res.render("create");
-});
+app.get("/posts/new", redirectNewPostPageController );
 
-app.post("/posts/store", async (req, res) => {
-    const{title, body} = req.body;
-    const image = req.files.image;
-    const imageName = `${uuidv4()}-${image.name}`
-        
-    console.log("image:", image);
-    
-    try{
-        image.mv(path.resolve(__dirname, "public/upload", imageName));
-        
-        const newPost = await addPost(title, body, imageName);
+app.post("/posts/store", validateMiddleware, createNewPostController);
 
+app.get("/posts", listPostsController);
 
-        res.redirect(`/post/${newPost.id}`);
+app.get("/about", redirectAboutController);
 
-    } catch (error){
-        res.status(400).json({
-            status: "error",
-            error
-        });
-    }
-});
+app.get("/", listPostsController)
 
-app.get("/", async (req, res) => {
-    const posts = await listPosts();
+app.get("/contact", redirectContactController);
 
-    res.render("index", {
-        posts: posts,
-    })
-});
-
-app.get("/posts", async (req, res) => {
-    const posts = await listPosts();
-
-    res.status(200).json({
-        status: "success",
-        data: posts,
-    });
-});
-
-app.get("/about", (req, res) => {
-    res.render("about");
-});
-
-app.get("/contact", (req, res) => {
-    res.render("contact");
-});
-
-app.get("/post/:id", async (req, res) => {
-    const postId = req.params.id;
-
-    const post = await getPost(postId);
-
-    res.render("post",{
-        post: post,
-    });
-});
+app.get("/post/:id", getPostbyIdController);
 
 app.listen(5000, () => {
     console.log("Go to http://localhost:5000");
